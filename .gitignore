@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Editors
+.idea/
+.vscode/
+
+# Training artifacts
+out/
+out-*/
+checkpoints/
+runs/
+wandb/
+*.pt
+*.pth
+*.ckpt
+
+# Data artifacts
+/data/
+nanoGPT/data/**/train.bin
+nanoGPT/data/**/val.bin
+nanoGPT/data/**/meta.pkl
+*.bin
+*.npy
+*.npz
+
+# System
+.DS_Store
+
