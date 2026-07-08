@@ -30,6 +30,8 @@ Phase 0 project setup is in progress:
 - initial YAML config schema
 - `nanoGPT/` baseline kept intact for reference
 
+
+
 ## Repository Layout
 
 ```text
@@ -53,6 +55,8 @@ NanoTrain/
 ├── tests/
 └── PLAN.md
 ```
+
+
 
 ## Quick Start
 
@@ -96,9 +100,22 @@ Run the nanoGPT baseline:
 python train.py config/train_shakespeare_char.py
 ```
 
-## Roadmap
+Run the NanoTrain migrated smoke trainer from the project root:
 
-See `PLAN.md` for the staged roadmap:
+```bash
+cd /data_2/xiatianze/nanotrain
+python train.py --config configs/nanotrain_shakespeare_char_smoke.yaml
+```
+
+Run the NanoTrain single-GPU Shakespeare config:
+
+```bash
+python train.py --config configs/gpt_single_gpu.yaml
+```
+
+
+
+## Roadmap
 
 - v0.1: GPT single-GPU training with normal loss convergence
 - v0.2: Tensor Parallel training with multi-GPU loss aligned to single-GPU baseline
