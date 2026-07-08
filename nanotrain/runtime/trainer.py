@@ -14,7 +14,7 @@ from nanotrain.config import NanoTrainConfig
 from nanotrain.data import ShakespeareCharDataset
 from nanotrain.distributed import DistributedContext
 from nanotrain.model import GPT, GPTConfig, TensorParallelGPT
-from nanotrain.optimizer import ZeroOneAdamW, build_optimizer
+from nanotrain.optimizer import ZeroOneAdamW, ZeroTwoAdamW, build_optimizer
 
 
 class Trainer:
@@ -64,7 +64,7 @@ class Trainer:
         )
         if config.runtime.compile:
             self.model = torch.compile(self.model)
-        if self.distributed.is_ddp:
+        if self._should_wrap_ddp():
             if self.device_type == "cuda":
                 self.model = DDP(self.model, device_ids=[self.distributed.local_rank])
             else:
@@ -122,6 +122,9 @@ class Trainer:
             return TensorParallelGPT(model_config, context=self.distributed)
         return GPT(model_config)
 
+    def _should_wrap_ddp(self) -> bool:
+        return self.distributed.is_ddp and self.config.distributed.zero_stage != 2
+
     def _unscale_optimizer(self) -> None:
         if isinstance(self.optimizer, ZeroOneAdamW):
             self.optimizer.unscale_(self.scaler)
@@ -150,6 +153,10 @@ class Trainer:
         else:
             self.scaler.step(self.optimizer)
             self.scaler.update()
+
+    def _reduce_zero2_gradients(self) -> None:
+        if isinstance(self.optimizer, ZeroTwoAdamW):
+            self.optimizer.reduce_gradients()
 
     def get_lr(self, iter_num: int) -> float:
         optimizer_cfg = self.config.optimizer
@@ -195,7 +202,7 @@ class Trainer:
             return
         if isinstance(self.optimizer, ZeroOneAdamW):
             if self.config.train.always_save_checkpoint:
-                print("skipping checkpoint save: ZeRO-1 checkpointing is not implemented yet")
+                print("skipping checkpoint save: ZeRO checkpointing is not implemented yet")
             return
         should_save = losses["val"] < self.best_val_loss or self.config.train.always_save_checkpoint
         if not should_save:
@@ -245,7 +252,7 @@ class Trainer:
                     self._save_checkpoint(losses)
 
             for micro_step in range(self.gradient_accumulation_steps):
-                if self.distributed.is_ddp:
+                if isinstance(self.model, DDP):
                     self.model.require_backward_grad_sync = (
                         micro_step == self.gradient_accumulation_steps - 1
                     )
@@ -257,6 +264,7 @@ class Trainer:
                 x, y = self.dataset.get_batch("train")
                 self.scaler.scale(loss).backward()
 
+            self._reduce_zero2_gradients()
             already_unscaled = self._clip_grad_norm()
             self._step_optimizer(already_unscaled=already_unscaled)
             self.optimizer.zero_grad(set_to_none=True)

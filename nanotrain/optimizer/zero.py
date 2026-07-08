@@ -1,7 +1,8 @@
 """ZeRO optimizer variants.
 
-The Phase 4 implementation targets ZeRO-1: optimizer states are sharded across
-data-parallel ranks while parameters and gradients remain replicated.
+ZeRO-1 shards optimizer states across data-parallel ranks. ZeRO-2 additionally
+reduces each gradient only to the rank that owns the corresponding optimizer
+state.
 """
 
 from __future__ import annotations
@@ -117,4 +118,26 @@ class ZeroOneAdamW:
         self.local_optimizer.load_state_dict(state_dict["optimizer"])
 
 
-__all__ = ["ZeroOneAdamW", "parameter_owner"]
+class ZeroTwoAdamW(ZeroOneAdamW):
+    """ZeRO-2 MVP: shard optimizer states and reduce gradients to owner ranks."""
+
+    def reduce_gradients(self) -> None:
+        if not dist.is_available() or not dist.is_initialized():
+            return
+        for index, param in enumerate(self.params):
+            if param.grad is None:
+                continue
+            owner = parameter_owner(index, self.distributed.world_size)
+            dist.reduce(param.grad, dst=owner, op=dist.ReduceOp.SUM)
+            if self.distributed.rank == owner:
+                param.grad.div_(self.distributed.world_size)
+            else:
+                param.grad = None
+
+    def state_dict(self) -> dict:
+        state = super().state_dict()
+        state["zero_stage"] = 2
+        return state
+
+
+__all__ = ["ZeroOneAdamW", "ZeroTwoAdamW", "parameter_owner"]

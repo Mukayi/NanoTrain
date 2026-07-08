@@ -2,7 +2,7 @@ import torch.nn as nn
 
 from nanotrain.config import OptimizerConfig
 from nanotrain.distributed import DistributedContext
-from nanotrain.optimizer import ZeroOneAdamW, parameter_owner
+from nanotrain.optimizer import ZeroOneAdamW, ZeroTwoAdamW, parameter_owner
 
 
 def fake_ddp_context(rank: int, world_size: int) -> DistributedContext:
@@ -45,3 +45,15 @@ def test_zero_one_adamw_keeps_only_local_optimizer_params() -> None:
     assert optimizer.local_param_names == expected_names
     assert set(optimizer.local_params) == local_group_params
     assert len(optimizer.local_params) < len(list(model.parameters()))
+
+
+def test_zero_two_state_dict_marks_stage_two() -> None:
+    model = nn.Linear(4, 2)
+    optimizer = ZeroTwoAdamW(
+        model.named_parameters(),
+        OptimizerConfig(),
+        device_type="cpu",
+        distributed=fake_ddp_context(rank=0, world_size=2),
+    )
+
+    assert optimizer.state_dict()["zero_stage"] == 2

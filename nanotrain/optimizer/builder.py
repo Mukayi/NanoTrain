@@ -5,7 +5,7 @@ import torch
 from nanotrain.config import DistributedConfig, OptimizerConfig
 from nanotrain.distributed import DistributedContext
 from nanotrain.model import GPT, TensorParallelGPT
-from nanotrain.optimizer.zero import ZeroOneAdamW
+from nanotrain.optimizer.zero import ZeroOneAdamW, ZeroTwoAdamW
 
 
 def build_optimizer(
@@ -22,6 +22,15 @@ def build_optimizer(
         if distributed_context is None:
             raise RuntimeError("ZeRO-1 requires a distributed context")
         return ZeroOneAdamW(
+            model.named_parameters(),
+            config,
+            device_type=device_type,
+            distributed=distributed_context,
+        )
+    if zero_stage == 2:
+        if distributed_context is None:
+            raise RuntimeError("ZeRO-2 requires a distributed context")
+        return ZeroTwoAdamW(
             model.named_parameters(),
             config,
             device_type=device_type,

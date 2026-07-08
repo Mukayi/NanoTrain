@@ -20,15 +20,18 @@ The `nanotrain/` package will become the clean training engine implementation.
 
 ## Current Status
 
-Phase 0 project setup is in progress:
+NanoTrain currently has a working training path from the original single-process
+baseline through distributed training MVPs:
 
-- local git repository
-- Python package skeleton
-- `ruff`, `black`, `pytest`, and `pre-commit` configuration
-- Conda and Docker environment files
-- minimal import test
-- initial YAML config schema
-- `nanoGPT/` baseline kept intact for reference
+- Single-process GPT training migrated from `nanoGPT`
+- DDP training launched with `torchrun`
+- Megatron-style pure Tensor Parallel over attention, MLP, embedding, and LM head
+- ZeRO-1 optimizer-state sharding for DDP
+- ZeRO-2 MVP with owner-rank gradient reduction for DDP
+- Smoke configs and tests for single-process, DDP, TP, ZeRO-1, and ZeRO-2 paths
+
+The original `GPT` baseline remains unchanged; TP and ZeRO paths are opt-in via
+YAML config fields.
 
 
 
@@ -146,14 +149,25 @@ parameters and gradients replicated. After each local optimizer step, NanoTrain
 broadcasts updated parameters from their owner rank. ZeRO-1 checkpoint
 save/resume is deferred until the distributed checkpoint phase.
 
+Run the NanoTrain ZeRO-2 smoke config on 2 GPUs:
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py --config configs/gpt_zero2_smoke.yaml
+```
+
+The ZeRO-2 MVP avoids DDP's default gradient all-reduce. After backward,
+NanoTrain reduces each parameter gradient only to its owner rank, clears
+non-owner gradients, steps local AdamW shards, and broadcasts updated
+parameters. This first version is DDP-only and does not yet support TP+ZeRO.
+
 
 
 ## Roadmap
 
 - v0.1: GPT single-GPU training with normal loss convergence
 - v0.2: DDP training migrated from the `nanoGPT` baseline
-- v0.3: Tensor Parallel training with multi-GPU loss aligned to single-GPU baseline
-- v0.4: ZeRO-1 and activation checkpointing with memory comparison
-- v0.5: reusable runtime with config, checkpoint, resume, AMP, and profiling
+- v0.3: Megatron-style Tensor Parallel MVP
+- v0.4: ZeRO-1 and ZeRO-2 MVPs for DDP
+- v0.5: distributed checkpointing, resume, activation checkpointing, and runtime cleanup
 - v0.6: benchmark results for throughput, memory, and scaling
 

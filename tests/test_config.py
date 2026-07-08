@@ -36,3 +36,12 @@ def test_load_zero1_smoke_config() -> None:
     assert config.distributed.tp_size == 1
     assert config.distributed.zero_stage == 1
     assert config.train.gradient_accumulation_steps == 2
+
+
+def test_load_zero2_smoke_config() -> None:
+    config = load_config("configs/gpt_zero2_smoke.yaml")
+
+    assert config.distributed.backend == "nccl"
+    assert config.distributed.tp_size == 1
+    assert config.distributed.zero_stage == 2
+    assert config.train.gradient_accumulation_steps == 2
