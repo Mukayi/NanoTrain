@@ -13,8 +13,8 @@ from nanotrain.checkpoint import CheckpointManager
 from nanotrain.config import NanoTrainConfig
 from nanotrain.data import ShakespeareCharDataset
 from nanotrain.distributed import DistributedContext
-from nanotrain.model import GPT, GPTConfig
-from nanotrain.optimizer import build_optimizer
+from nanotrain.model import GPT, GPTConfig, TensorParallelGPT
+from nanotrain.optimizer import ZeroOneAdamW, build_optimizer
 
 
 class Trainer:
@@ -24,6 +24,7 @@ class Trainer:
         self.distributed = DistributedContext.initialize(
             backend=config.distributed.backend,
             requested_device=config.runtime.device,
+            tp_size=config.distributed.tp_size,
         )
         self.device = self._resolve_device(self.distributed.device)
         self.device_type = "cuda" if "cuda" in self.device else "cpu"
@@ -53,8 +54,14 @@ class Trainer:
 
         model_config = self._build_model_config()
         self.model_args = asdict(model_config)
-        self.model = GPT(model_config).to(self.device)
-        self.optimizer = build_optimizer(self.raw_model, config.optimizer, self.device_type)
+        self.model = self._build_model(model_config).to(self.device)
+        self.optimizer = build_optimizer(
+            self.raw_model,
+            config.optimizer,
+            self.device_type,
+            distributed_config=config.distributed,
+            distributed_context=self.distributed,
+        )
         if config.runtime.compile:
             self.model = torch.compile(self.model)
         if self.distributed.is_ddp:
@@ -71,7 +78,7 @@ class Trainer:
         self.running_mfu = -1.0
 
     @property
-    def raw_model(self) -> GPT:
+    def raw_model(self) -> GPT | TensorParallelGPT:
         model = self.model.module if isinstance(self.model, DDP) else self.model
         return model._orig_mod if hasattr(model, "_orig_mod") else model
 
@@ -89,13 +96,13 @@ class Trainer:
 
     def _resolve_gradient_accumulation_steps(self) -> int:
         steps = self.config.train.gradient_accumulation_steps
-        world_size = self.distributed.world_size
-        if steps % world_size != 0:
+        data_parallel_world_size = self.distributed.world_size if self.distributed.is_ddp else 1
+        if steps % data_parallel_world_size != 0:
             raise ValueError(
                 "train.gradient_accumulation_steps must be divisible by DDP world size "
-                f"({steps} % {world_size} != 0)"
+                f"({steps} % {data_parallel_world_size} != 0)"
             )
-        return steps // world_size
+        return steps // data_parallel_world_size
 
     def _build_model_config(self) -> GPTConfig:
         model_cfg = self.config.model
@@ -109,6 +116,40 @@ class Trainer:
             dropout=model_cfg.dropout,
             bias=model_cfg.bias,
         )
+
+    def _build_model(self, model_config: GPTConfig) -> GPT | TensorParallelGPT:
+        if self.distributed.is_tensor_parallel:
+            return TensorParallelGPT(model_config, context=self.distributed)
+        return GPT(model_config)
+
+    def _unscale_optimizer(self) -> None:
+        if isinstance(self.optimizer, ZeroOneAdamW):
+            self.optimizer.unscale_(self.scaler)
+        else:
+            self.scaler.unscale_(self.optimizer)
+
+    def _clip_grad_norm(self) -> bool:
+        if self.config.optimizer.grad_clip == 0.0:
+            return False
+        self._unscale_optimizer()
+        if isinstance(self.optimizer, ZeroOneAdamW):
+            self.optimizer.clip_grad_norm_(self.config.optimizer.grad_clip)
+        else:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(),
+                self.config.optimizer.grad_clip,
+            )
+        return True
+
+    def _step_optimizer(self, *, already_unscaled: bool) -> None:
+        if isinstance(self.optimizer, ZeroOneAdamW):
+            if self.scaler.is_enabled() and not already_unscaled:
+                self.optimizer.unscale_(self.scaler)
+            self.optimizer.step()
+            self.scaler.update()
+        else:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
     def get_lr(self, iter_num: int) -> float:
         optimizer_cfg = self.config.optimizer
@@ -145,6 +186,17 @@ class Trainer:
     def _save_checkpoint(self, losses: dict[str, float]) -> None:
         if not self.distributed.is_master:
             return
+        if self.distributed.is_tensor_parallel:
+            if self.config.train.always_save_checkpoint:
+                print(
+                    "skipping checkpoint save: "
+                    "Tensor Parallel checkpointing is not implemented yet"
+                )
+            return
+        if isinstance(self.optimizer, ZeroOneAdamW):
+            if self.config.train.always_save_checkpoint:
+                print("skipping checkpoint save: ZeRO-1 checkpointing is not implemented yet")
+            return
         should_save = losses["val"] < self.best_val_loss or self.config.train.always_save_checkpoint
         if not should_save:
             return
@@ -164,7 +216,7 @@ class Trainer:
     def train(self) -> None:
         tokens_per_iter = (
             self.gradient_accumulation_steps
-            * self.distributed.world_size
+            * (self.distributed.world_size if self.distributed.is_ddp else 1)
             * self.config.data.batch_size
             * self.config.model.block_size
         )
@@ -180,13 +232,17 @@ class Trainer:
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = lr
 
-            if self.iter_num % self.config.train.eval_interval == 0 and self.distributed.is_master:
-                losses = self.estimate_loss()
-                print(
-                    f"step {self.iter_num}: "
-                    f"train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
-                )
-                self._save_checkpoint(losses)
+            if self.iter_num % self.config.train.eval_interval == 0:
+                if self.distributed.is_master or self.distributed.is_tensor_parallel:
+                    losses = self.estimate_loss()
+                else:
+                    losses = None
+                if self.distributed.is_master and losses is not None:
+                    print(
+                        f"step {self.iter_num}: "
+                        f"train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
+                    )
+                    self._save_checkpoint(losses)
 
             for micro_step in range(self.gradient_accumulation_steps):
                 if self.distributed.is_ddp:
@@ -201,14 +257,8 @@ class Trainer:
                 x, y = self.dataset.get_batch("train")
                 self.scaler.scale(loss).backward()
 
-            if self.config.optimizer.grad_clip != 0.0:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(),
-                    self.config.optimizer.grad_clip,
-                )
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            already_unscaled = self._clip_grad_norm()
+            self._step_optimizer(already_unscaled=already_unscaled)
             self.optimizer.zero_grad(set_to_none=True)
 
             t1 = time.time()

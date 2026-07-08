@@ -18,3 +18,21 @@ def test_load_ddp_smoke_config() -> None:
     assert config.distributed.tp_size == 1
     assert config.runtime.device == "cuda"
     assert config.train.gradient_accumulation_steps == 2
+
+
+def test_load_tp_smoke_config() -> None:
+    config = load_config("configs/gpt_tp_smoke.yaml")
+
+    assert config.distributed.backend == "nccl"
+    assert config.distributed.tp_size == 2
+    assert config.runtime.device == "cuda"
+    assert config.train.gradient_accumulation_steps == 1
+
+
+def test_load_zero1_smoke_config() -> None:
+    config = load_config("configs/gpt_zero1_smoke.yaml")
+
+    assert config.distributed.backend == "nccl"
+    assert config.distributed.tp_size == 1
+    assert config.distributed.zero_stage == 1
+    assert config.train.gradient_accumulation_steps == 2

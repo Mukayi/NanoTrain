@@ -326,6 +326,20 @@ NanoTrain 支持从单进程训练平滑切换到 `torchrun` DDP 训练，具备
 
 使用 2 GPU Tensor Parallel 训练时，loss 与单卡训练基本一致。
 
+### Implementation Status
+
+- [x] 新增 Megatron-LM 风格通信映射：copy、scatter、gather、reduce tensor-parallel region
+- [x] 新增 `ColumnParallelLinear`
+- [x] 新增 `RowParallelLinear`
+- [x] 新增 `VocabParallelEmbedding`
+- [x] 新增 vocab-parallel LM head，并在当前 MVP 中 gather logits 后复用普通 cross entropy
+- [x] 新增 `TensorParallelGPT`，保留原 `GPT` baseline 不变
+- [x] Trainer 支持 `distributed.tp_size > 1` 时切换到纯 TP 模型
+- [x] 支持 2 GPU pure Tensor Parallel smoke training
+- [x] 保留原单进程和 DDP 路径可运行
+- [ ] TP checkpoint save/resume：等待 Phase 5 distributed checkpoint layout
+- [ ] Hybrid TP + DDP：后续扩展
+
 ## Phase 4: ZeRO-1 Optimizer State Sharding
 
 预计时间：约 1 周
@@ -379,6 +393,18 @@ NanoTrain 支持从单进程训练平滑切换到 `torchrun` DDP 训练，具备
 ### Milestone
 
 ZeRO-1 可以正常训练，并展示 optimizer state 显存占用下降。
+
+### Implementation Status
+
+- [x] 新增 ZeRO-1 AdamW wrapper
+- [x] 每个 DDP rank 只为本 rank 负责的参数建立 optimizer state
+- [x] 参数按 deterministic round-robin owner rank 分片
+- [x] local optimizer step 后从 owner rank broadcast 参数，保持所有 DDP replica 同步
+- [x] Trainer 支持 `distributed.zero_stage: 1`
+- [x] `zero_stage: 0` 保持原单进程、DDP、TP 路径不变
+- [x] 新增 ZeRO-1 smoke config
+- [ ] ZeRO-1 checkpoint save/resume：等待 Phase 5 distributed checkpoint layout
+- [ ] Hybrid TP + ZeRO：后续扩展
 
 ## Phase 5: Runtime Infrastructure
 

@@ -123,6 +123,29 @@ The DDP path follows the `nanoGPT` launch pattern: `torchrun` provides
 `RANK`, `LOCAL_RANK`, and `WORLD_SIZE`; NanoTrain binds each process to its
 local CUDA device and only rank 0 logs evaluations or saves checkpoints.
 
+Run the NanoTrain pure Tensor Parallel smoke config on 2 GPUs:
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py --config configs/gpt_tp_smoke.yaml
+```
+
+The Tensor Parallel path uses Megatron-style column-parallel and row-parallel
+linear layers, vocab-parallel token embeddings, and a vocab-parallel LM head.
+For now, `WORLD_SIZE` must equal `distributed.tp_size`; hybrid TP+DDP is a
+later milestone. Tensor Parallel checkpoint save/resume is also deferred until
+the distributed checkpoint phase.
+
+Run the NanoTrain ZeRO-1 smoke config on 2 GPUs:
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py --config configs/gpt_zero1_smoke.yaml
+```
+
+The ZeRO-1 path shards AdamW optimizer state across DDP ranks while keeping
+parameters and gradients replicated. After each local optimizer step, NanoTrain
+broadcasts updated parameters from their owner rank. ZeRO-1 checkpoint
+save/resume is deferred until the distributed checkpoint phase.
+
 
 
 ## Roadmap
