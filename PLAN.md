@@ -161,11 +161,74 @@ MVP -> Core Parallel Features -> Runtime Infrastructure -> Benchmark -> Extensio
 
 Phase 1 已经把 `nanoGPT` 的单卡训练主干迁移到 NanoTrain：新增了 GPT 模型、yaml 配置、Shakespeare char 数据读取、optimizer builder、checkpoint manager、最小 Trainer 和根目录 `train.py`。当前 `nanoGPT` baseline 与 NanoTrain smoke 训练都已跑通，NanoTrain smoke 在 iter 20 达到 train loss 3.2556、val loss 3.1504，并通过 `ruff`、`black` 和 `pytest` 检查。
 
-## Phase 2: Tensor Parallel
+## Phase 2: DistributedDataParallel Migration
+
+预计时间：约 2 到 3 天
+
+目标：先把 `nanoGPT/train.py` 中已经验证过的 DDP 训练路径迁移到 NanoTrain，作为后续 Tensor Parallel 和 ZeRO 的分布式 runtime 基础。
+
+这一阶段不修改 GPT 模型结构，也不实现 Tensor Parallel。重点是把 `torchrun` 启动、rank / local rank / world size 管理、进程组初始化、DDP wrapper、master rank 日志与 checkpoint、gradient accumulation 同步策略迁移到 `nanotrain/runtime/trainer.py` 和 `nanotrain/distributed/`。
+
+### nanoGPT DDP Patterns To Migrate
+
+- `RANK` / `LOCAL_RANK` / `WORLD_SIZE` 环境变量检测
+- `torch.distributed.init_process_group`
+- `torch.cuda.set_device(f"cuda:{LOCAL_RANK}")`
+- `master_process = rank == 0`
+- `seed_offset = rank`
+- `gradient_accumulation_steps //= world_size`
+- `DistributedDataParallel(model, device_ids=[local_rank])`
+- gradient accumulation 中只在最后一个 micro step 同步梯度
+- master rank 才执行日志输出和 checkpoint 保存
+- 训练结束后 `destroy_process_group`
+
+### NanoTrain DDP Implementation
+
+- 新增 distributed runtime context，封装 DDP 状态：
+  - 是否由 `torchrun` 启动
+  - global rank
+  - local rank
+  - world size
+  - master rank 判断
+  - DDP device 解析
+  - process group 初始化和销毁
+- Trainer 初始化时先建立 distributed context
+- 单进程路径保持现有行为不变
+- DDP 路径下使用 local rank 绑定 CUDA device
+- DDP 路径下每个 rank 使用 `seed + rank`
+- DDP 路径下要求 `gradient_accumulation_steps` 可以被 `world_size` 整除
+- DDP 路径下保存全局 tokens per iteration 统计
+- 模型保持现有 `GPT`，在 compile 之后用 DDP 包装
+- `raw_model` 能正确 unwrap DDP 和 `torch.compile`
+- eval、日志、checkpoint 只在 master rank 执行
+
+### DDP Config And Launch
+
+- 新增 `configs/gpt_ddp_smoke.yaml`
+- 使用小模型和短训练步数验证 DDP 路径
+- 示例命令：
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py --config configs/gpt_ddp_smoke.yaml
+```
+
+### Validation
+
+- 原有单进程 smoke training 继续通过
+- `pytest` 继续通过
+- DDP smoke config 可以正常加载
+- 2 GPU DDP smoke training 可以完成数个 iteration
+- 只有 rank 0 输出 eval / log / checkpoint 信息
+
+### Milestone
+
+NanoTrain 支持从单进程训练平滑切换到 `torchrun` DDP 训练，具备后续 Tensor Parallel 和 ZeRO 所需的基础分布式 runtime。
+
+## Phase 3: Tensor Parallel
 
 预计时间：约 2 周
 
-目标：实现项目最核心的训练框架能力：Tensor Parallel。
+目标：在 DDP runtime 基础上实现项目最核心的训练框架能力：Tensor Parallel。
 
 这一阶段不要一开始追求复杂模型，先保证线性层、embedding、attention、MLP 的并行逻辑正确，再集成到 GPT 中。
 
@@ -263,7 +326,7 @@ Phase 1 已经把 `nanoGPT` 的单卡训练主干迁移到 NanoTrain：新增了
 
 使用 2 GPU Tensor Parallel 训练时，loss 与单卡训练基本一致。
 
-## Phase 3: ZeRO-1 Optimizer State Sharding
+## Phase 4: ZeRO-1 Optimizer State Sharding
 
 预计时间：约 1 周
 
@@ -317,7 +380,7 @@ Phase 1 已经把 `nanoGPT` 的单卡训练主干迁移到 NanoTrain：新增了
 
 ZeRO-1 可以正常训练，并展示 optimizer state 显存占用下降。
 
-## Phase 4: Runtime Infrastructure
+## Phase 5: Runtime Infrastructure
 
 预计时间：约 1 周
 
@@ -409,7 +472,7 @@ ZeRO-1 可以正常训练，并展示 optimizer state 显存占用下降。
 
 形成完整 Runtime：配置、训练、checkpoint、resume、AMP、activation checkpointing 都可以通过统一入口使用。
 
-## Phase 5: Benchmark And Profiling
+## Phase 6: Benchmark And Profiling
 
 预计时间：约 3 天
 
@@ -476,7 +539,7 @@ ZeRO-1 可以正常训练，并展示 optimizer state 显存占用下降。
 
 完成可复现 benchmark，并能在 README 中展示吞吐、显存和扩展性结果。
 
-## Phase 6: Documentation
+## Phase 7: Documentation
 
 预计时间：约 2 天
 
@@ -552,7 +615,7 @@ torchrun --nproc_per_node=2 train.py --config configs/gpt_tp_zero1.yaml
 
 README、架构图、API 说明、训练示例和 benchmark 结果完整，可以作为一个独立 AI Infra 项目展示。
 
-## Phase 7: Future Extensions
+## Phase 8: Future Extensions
 
 这些内容不需要在前期完成，但要保证架构可以自然扩展。
 

@@ -9,3 +9,12 @@ def test_load_smoke_config() -> None:
     assert config.data.dataset == "shakespeare_char"
     assert config.runtime.device == "cpu"
     assert config.train.max_iters == 20
+
+
+def test_load_ddp_smoke_config() -> None:
+    config = load_config("configs/gpt_ddp_smoke.yaml")
+
+    assert config.distributed.backend == "nccl"
+    assert config.distributed.tp_size == 1
+    assert config.runtime.device == "cuda"
+    assert config.train.gradient_accumulation_steps == 2

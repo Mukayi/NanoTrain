@@ -113,13 +113,24 @@ Run the NanoTrain single-GPU Shakespeare config:
 python train.py --config configs/gpt_single_gpu.yaml
 ```
 
+Run the NanoTrain DDP smoke config on 2 GPUs:
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py --config configs/gpt_ddp_smoke.yaml
+```
+
+The DDP path follows the `nanoGPT` launch pattern: `torchrun` provides
+`RANK`, `LOCAL_RANK`, and `WORLD_SIZE`; NanoTrain binds each process to its
+local CUDA device and only rank 0 logs evaluations or saves checkpoints.
+
 
 
 ## Roadmap
 
 - v0.1: GPT single-GPU training with normal loss convergence
-- v0.2: Tensor Parallel training with multi-GPU loss aligned to single-GPU baseline
-- v0.3: ZeRO-1 and activation checkpointing with memory comparison
-- v0.4: reusable runtime with config, checkpoint, resume, AMP, and profiling
-- v0.5: benchmark results for throughput, memory, and scaling
+- v0.2: DDP training migrated from the `nanoGPT` baseline
+- v0.3: Tensor Parallel training with multi-GPU loss aligned to single-GPU baseline
+- v0.4: ZeRO-1 and activation checkpointing with memory comparison
+- v0.5: reusable runtime with config, checkpoint, resume, AMP, and profiling
+- v0.6: benchmark results for throughput, memory, and scaling
 
