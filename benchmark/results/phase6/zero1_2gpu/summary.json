@@ -1,0 +1,102 @@
+{
+  "config": {
+    "data": {
+      "batch_size": 4,
+      "data_dir": "nanoGPT/data/shakespeare_char",
+      "dataset": "shakespeare_char"
+    },
+    "distributed": {
+      "backend": "nccl",
+      "tp_size": 1,
+      "zero_stage": 1
+    },
+    "model": {
+      "bias": false,
+      "block_size": 32,
+      "dropout": 0.0,
+      "n_embd": 128,
+      "n_head": 2,
+      "n_layer": 2,
+      "vocab_size": 50304
+    },
+    "optimizer": {
+      "beta1": 0.9,
+      "beta2": 0.99,
+      "grad_clip": 1.0,
+      "learning_rate": 0.001,
+      "name": "adamw",
+      "weight_decay": 0.1
+    },
+    "runtime": {
+      "activation_checkpointing": false,
+      "amp": true,
+      "compile": false,
+      "device": "cuda",
+      "dtype": "bfloat16"
+    },
+    "scheduler": {
+      "decay_lr": true,
+      "lr_decay_iters": 4,
+      "min_lr": 0.0001,
+      "warmup_iters": 2
+    },
+    "seed": 1337,
+    "train": {
+      "always_save_checkpoint": false,
+      "eval_interval": 10,
+      "eval_iters": 5,
+      "gradient_accumulation_steps": 2,
+      "init_from": "scratch",
+      "log_interval": 1,
+      "max_iters": 20,
+      "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/phase6/zero1_2gpu/out",
+      "resume_path": null
+    }
+  },
+  "config_path": "configs/gpt_zero1_smoke.yaml",
+  "hardware": {
+    "cuda_available": true,
+    "cuda_device_count": 2,
+    "cuda_devices": [
+      "NVIDIA RTX A6000",
+      "NVIDIA RTX A6000"
+    ],
+    "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+    "python": "3.10.20",
+    "torch": "2.5.1"
+  },
+  "metrics": {
+    "activation_memory_estimate_mb": 0.0625,
+    "elapsed_seconds": 1.8701256679487415,
+    "final_eval_train_loss": 3.5028443336486816,
+    "final_eval_val_loss": 3.433666944503784,
+    "final_iter": 19,
+    "final_train_loss": 3.5506591796875,
+    "gradient_memory_mb": 1.5498046875,
+    "mean_backward_time_ms": 2.230691996182462,
+    "mean_communication_time_ms": 0.00754610855916613,
+    "mean_forward_time_ms": 1.0352355250353484,
+    "mean_optimizer_time_ms": 0.8214223658126828,
+    "mean_samples_per_second": 787.7068175589529,
+    "mean_step_time_ms": 5.650583066438374,
+    "mean_tokens_per_second": 50413.23632377299,
+    "mode": "zero1",
+    "num_eval_records": 3,
+    "num_train_step_records": 20,
+    "optimizer_state_memory_mb": 1.316436767578125,
+    "parameter_memory_mb": 1.5498046875,
+    "peak_gpu_memory_mb": 23.5302734375,
+    "summary_warmup_steps": 1,
+    "world_size": 2
+  },
+  "name": "zero1_2gpu",
+  "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/phase6/zero1_2gpu/out",
+  "overrides": [
+    "train.max_iters=20",
+    "train.eval_interval=10",
+    "train.eval_iters=5",
+    "train.log_interval=1",
+    "train.always_save_checkpoint=false"
+  ],
+  "results_dir": "/data_2/xiatianze/nanotrain/benchmark/results/phase6/zero1_2gpu"
+}

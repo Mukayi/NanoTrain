@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 
 
 class LayerNorm(nn.Module):
@@ -124,6 +125,7 @@ class GPT(nn.Module):
         if config.block_size is None:
             raise ValueError("block_size must be set")
         self.config = config
+        self.activation_checkpointing = False
 
         self.transformer = nn.ModuleDict(
             {
@@ -172,7 +174,10 @@ class GPT(nn.Module):
         pos_emb = self.transformer.wpe(pos)
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
-            x = block(x)
+            if self.activation_checkpointing and self.training:
+                x = checkpoint(block, x, use_reentrant=False)
+            else:
+                x = block(x)
         x = self.transformer.ln_f(x)
 
         if targets is not None:

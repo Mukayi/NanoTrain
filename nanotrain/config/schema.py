@@ -1,5 +1,8 @@
 """Configuration dataclasses for NanoTrain."""
 
+from __future__ import annotations
+
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -52,6 +55,8 @@ class TrainConfig:
     gradient_accumulation_steps: int = 1
     out_dir: str = "out-shakespeare-char"
     always_save_checkpoint: bool = False
+    init_from: str = "scratch"
+    resume_path: str | None = None
 
 
 @dataclass
@@ -84,6 +89,35 @@ class NanoTrainConfig:
 
 def _build_dataclass(cls: type, values: dict[str, Any]) -> Any:
     return cls(**values)
+
+
+def _parse_override_value(value: str) -> Any:
+    return yaml.safe_load(value)
+
+
+def apply_overrides(config: NanoTrainConfig, overrides: list[str]) -> NanoTrainConfig:
+    """Apply dot-path command-line overrides in-place and return config."""
+
+    for override in overrides:
+        if "=" not in override:
+            raise ValueError(f"override must use key=value syntax: {override!r}")
+        key_path, raw_value = override.split("=", 1)
+        parts = key_path.split(".")
+        if len(parts) != 2:
+            raise ValueError(f"override key must use section.field syntax: {key_path!r}")
+
+        section_name, field_name = parts
+        if not hasattr(config, section_name):
+            raise ValueError(f"unknown config section: {section_name!r}")
+        section = getattr(config, section_name)
+        if not dataclasses.is_dataclass(section):
+            raise ValueError(f"config section is not overrideable: {section_name!r}")
+        field_names = {field.name for field in dataclasses.fields(section)}
+        if field_name not in field_names:
+            raise ValueError(f"unknown config field: {key_path!r}")
+        setattr(section, field_name, _parse_override_value(raw_value))
+
+    return config
 
 
 def load_config(path: str | Path) -> NanoTrainConfig:

@@ -53,3 +53,17 @@ def test_gpt_single_forward_backward_step() -> None:
     loss.backward()
     optimizer.step()
     optimizer.zero_grad(set_to_none=True)
+
+
+def test_gpt_activation_checkpointing_forward_backward_step() -> None:
+    model = GPT(tiny_config())
+    model.activation_checkpointing = True
+    idx = torch.randint(0, model.config.vocab_size, (2, model.config.block_size))
+    targets = torch.randint(0, model.config.vocab_size, (2, model.config.block_size))
+
+    logits, loss = model(idx, targets)
+
+    assert logits.shape == (2, model.config.block_size, model.config.vocab_size)
+    assert loss is not None
+    loss.backward()
+    assert any(param.grad is not None for param in model.parameters())

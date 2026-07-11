@@ -1,0 +1,106 @@
+{
+  "config": {
+    "data": {
+      "batch_size": 16,
+      "data_dir": "nanoGPT/data/shakespeare_char",
+      "dataset": "shakespeare_char"
+    },
+    "distributed": {
+      "backend": "nccl",
+      "tp_size": 1,
+      "zero_stage": 0
+    },
+    "model": {
+      "bias": false,
+      "block_size": 256,
+      "dropout": 0.0,
+      "n_embd": 384,
+      "n_head": 6,
+      "n_layer": 6,
+      "vocab_size": 50304
+    },
+    "optimizer": {
+      "beta1": 0.9,
+      "beta2": 0.95,
+      "grad_clip": 1.0,
+      "learning_rate": 0.0006,
+      "name": "adamw",
+      "weight_decay": 0.1
+    },
+    "runtime": {
+      "activation_checkpointing": false,
+      "amp": true,
+      "compile": false,
+      "device": "cuda",
+      "dtype": "bfloat16"
+    },
+    "scheduler": {
+      "decay_lr": true,
+      "lr_decay_iters": 1000,
+      "min_lr": 6e-05,
+      "warmup_iters": 20
+    },
+    "seed": 1337,
+    "train": {
+      "always_save_checkpoint": false,
+      "eval_interval": 1,
+      "eval_iters": 1,
+      "gradient_accumulation_steps": 2,
+      "init_from": "scratch",
+      "log_interval": 1,
+      "max_iters": 1,
+      "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/scaling_smoke/ddp_2gpu/out",
+      "resume_path": null
+    }
+  },
+  "config_path": "configs/bench_gpt_medium.yaml",
+  "hardware": {
+    "cuda_available": true,
+    "cuda_device_count": 2,
+    "cuda_devices": [
+      "NVIDIA RTX A6000",
+      "NVIDIA RTX A6000"
+    ],
+    "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+    "python": "3.10.20",
+    "torch": "2.5.1"
+  },
+  "metrics": {
+    "activation_memory_estimate_mb": 18.0,
+    "elapsed_seconds": 1.9395352519932203,
+    "final_eval_train_loss": 3.8191490173339844,
+    "final_eval_val_loss": 3.827190399169922,
+    "final_iter": 1,
+    "final_train_loss": 4.279155731201172,
+    "gradient_memory_mb": 40.9892578125,
+    "mean_backward_time_ms": 58.61764802830294,
+    "mean_communication_time_ms": 0.028381997253745794,
+    "mean_forward_time_ms": 11.983685020823032,
+    "mean_optimizer_time_ms": 7.510636991355568,
+    "mean_samples_per_second": 57.22569955785982,
+    "mean_step_time_ms": 279.59465980529785,
+    "mean_tokens_per_second": 29299.558173624227,
+    "mode": "ddp2",
+    "num_eval_records": 2,
+    "num_train_step_records": 1,
+    "optimizer_state_memory_mb": 81.97866439819336,
+    "parameter_memory_mb": 40.9892578125,
+    "peak_gpu_memory_mb": 476.4921875,
+    "step_peak_gpu_memory_mb": 476.4921875,
+    "summary_warmup_steps": 1,
+    "world_size": 2
+  },
+  "name": "ddp_2gpu",
+  "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/scaling_smoke/ddp_2gpu/out",
+  "overrides": [
+    "train.max_iters=1",
+    "train.eval_interval=1",
+    "train.eval_iters=1",
+    "train.log_interval=1",
+    "train.always_save_checkpoint=false",
+    "train.gradient_accumulation_steps=2",
+    "distributed.zero_stage=0",
+    "distributed.tp_size=1"
+  ],
+  "results_dir": "/data_2/xiatianze/nanotrain/benchmark/results/scaling_smoke/ddp_2gpu"
+}

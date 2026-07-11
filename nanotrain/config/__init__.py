@@ -9,6 +9,7 @@ from nanotrain.config.schema import (
     RuntimeConfig,
     SchedulerConfig,
     TrainConfig,
+    apply_overrides,
     load_config,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "RuntimeConfig",
     "SchedulerConfig",
     "TrainConfig",
+    "apply_overrides",
     "load_config",
 ]

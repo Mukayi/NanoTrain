@@ -1,0 +1,52 @@
+# Larger GPT config for DDP vs ZeRO memory-sharding experiments.
+
+seed: 1337
+
+model:
+  vocab_size: 50304
+  block_size: 512
+  n_layer: 12
+  n_head: 12
+  n_embd: 768
+  dropout: 0.0
+  bias: false
+
+data:
+  dataset: shakespeare_char
+  data_dir: nanoGPT/data/shakespeare_char
+  batch_size: 4
+
+optimizer:
+  name: adamw
+  learning_rate: 0.0006
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+
+scheduler:
+  decay_lr: true
+  warmup_iters: 20
+  lr_decay_iters: 500
+  min_lr: 0.00006
+
+train:
+  max_iters: 500
+  eval_interval: 100
+  eval_iters: 10
+  log_interval: 10
+  gradient_accumulation_steps: 2
+  out_dir: out/bench-gpt-zero-memory
+  always_save_checkpoint: false
+
+distributed:
+  backend: nccl
+  tp_size: 1
+  zero_stage: 0
+
+runtime:
+  device: cuda
+  dtype: bfloat16
+  compile: false
+  amp: true
+  activation_checkpointing: false

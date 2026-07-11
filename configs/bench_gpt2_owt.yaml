@@ -1,0 +1,53 @@
+# GPT-2 124M / OpenWebText benchmark config aligned with nanoGPT train_gpt2.py.
+# Requires nanoGPT/data/openwebtext/train.bin and val.bin.
+
+seed: 1337
+
+model:
+  vocab_size: 50304
+  block_size: 1024
+  n_layer: 12
+  n_head: 12
+  n_embd: 768
+  dropout: 0.0
+  bias: false
+
+data:
+  dataset: openwebtext
+  data_dir: nanoGPT/data/openwebtext
+  batch_size: 12
+
+optimizer:
+  name: adamw
+  learning_rate: 0.0006
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+
+scheduler:
+  decay_lr: true
+  warmup_iters: 2000
+  lr_decay_iters: 600000
+  min_lr: 0.00006
+
+train:
+  max_iters: 1000
+  eval_interval: 200
+  eval_iters: 20
+  log_interval: 10
+  gradient_accumulation_steps: 40
+  out_dir: out/bench-gpt2-owt
+  always_save_checkpoint: false
+
+distributed:
+  backend: nccl
+  tp_size: 1
+  zero_stage: 0
+
+runtime:
+  device: cuda
+  dtype: bfloat16
+  compile: false
+  amp: true
+  activation_checkpointing: false

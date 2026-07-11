@@ -127,6 +127,8 @@ MVP -> Core Parallel Features -> Runtime Infrastructure -> Benchmark -> Extensio
 - [x] 优先支持 `nanoGPT/data/shakespeare_char`
 - [x] 复用 `prepare.py` 生成的 `train.bin` / `val.bin`
 - [x] 新增 NanoTrain dataset loader
+- [x] 新增通用 `BinTokenDataset`，支持 nanoGPT-style `train.bin` / `val.bin` token 数据格式
+- [x] 支持 `data.dataset: openwebtext` / `bin_token`，为 GPT-2 124M + OpenWebText benchmark 做准备
 - [x] 后续再考虑 Tiny Shakespeare token-level 或 WikiText2
 
 
@@ -510,6 +512,27 @@ ZeRO-1 可以正常训练并展示 optimizer state 显存占用下降；ZeRO-2 M
 
 形成完整 Runtime：配置、训练、checkpoint、resume、AMP、activation checkpointing 都可以通过统一入口使用。
 
+### Implementation Status
+
+- [x] 新增 `TrainingEngine` 作为可复用 runtime 入口，`run_training` 通过 engine 执行
+- [x] 新增 `DataBuilder`、`ModelBuilder`、`OptimizerBuilder`，Trainer 通过 builder 构造核心组件
+- [x] `DataBuilder` 支持 `shakespeare_char`、`bin_token` 和 `openwebtext` 三类 nanoGPT-style 数据入口
+- [x] 保留 step-based training，warmup + cosine decay scheduler 由统一配置驱动
+- [x] resume 后通过 checkpoint 中的 `iter_num` 恢复 scheduler 进度
+- [x] 复用 `nanoGPT` checkpoint 格式保存 model、optimizer、model args、iter、best val loss 和 config
+- [x] 新增 checkpoint resume，按 `nanoGPT` 逻辑用 checkpoint 中的关键 model args 恢复模型结构
+- [x] checkpoint 保存并恢复 FP16 GradScaler state
+- [x] checkpoint 保存并恢复 Python、NumPy、PyTorch 和 CUDA random state
+- [x] Trainer 支持通过 `train.init_from: resume` 和可选 `train.resume_path` 从 checkpoint 继续训练
+- [x] 保持现有 AMP autocast / GradScaler 路径，并纳入 checkpoint 保存恢复
+- [x] GPT 与 TensorParallelGPT 支持 Transformer Block activation checkpointing
+- [x] `runtime.activation_checkpointing` 支持 yaml 配置和命令行 override 开关
+- [x] `train.py` 支持 `--override section.field=value`
+- [x] 新增最小 `benchmark.py`，复用统一 config / override / runtime 入口
+- [x] 日志输出 step loss、learning rate、grad norm、tokens/s、GPU memory 和 checkpoint path
+- [x] 新增 GPT-2 124M / OpenWebText benchmark config family：`configs/bench_gpt2_owt.yaml`、`configs/bench_gpt2_owt_ddp.yaml`、`configs/bench_gpt2_owt_tp.yaml`、`configs/bench_gpt2_owt_zero.yaml`
+- [x] TP / ZeRO distributed checkpoint layout 明确保留为后续扩展项；当前 Phase 5 checkpoint 覆盖单卡和普通 DDP 路径
+
 ## Phase 6: Benchmark And Profiling
 
 预计时间：约 3 天
@@ -552,7 +575,8 @@ ZeRO-1 可以正常训练并展示 optimizer state 显存占用下降；ZeRO-2 M
 
 - 1 GPU
 - 2 GPU
-- 4 GPU，如果条件允许
+- 4 GPU
+- 8 GPU，如果条件允许
 
 对比内容：
 
@@ -579,6 +603,129 @@ ZeRO-1 可以正常训练并展示 optimizer state 显存占用下降；ZeRO-2 M
 ### Milestone
 
 完成可复现 benchmark，并能在 README 中展示吞吐、显存和扩展性结果。
+
+### Implementation Status
+
+- [x] `benchmark.py` 支持独立 run name、results dir、config override 和 structured summary 输出
+- [x] Trainer 写出逐步 `metrics.jsonl`，包含 loss、lr、grad norm、step time、forward time、backward time、optimizer step time、communication time、tokens/s、samples/s
+- [x] Trainer 记录 peak GPU memory、step-level peak GPU memory、parameter memory、gradient memory、optimizer state memory、activation memory 粗略估计
+- [x] 每个 train step 前 reset CUDA peak memory stats，保证 activation checkpointing / ZeRO 的单步峰值显存可比
+- [x] `benchmark.py` summary 增加 `step_peak_gpu_memory_mb`
+- [x] 新增 `benchmark/aggregate_results.py`，自动聚合多个 `summary.json`，派生 speedup、scaling efficiency、peak memory reduction 等指标
+- [x] 新增 `scripts/run_phase6_benchmarks.sh`，包含 CPU、单卡 GPU、activation checkpointing、2-GPU DDP、2-GPU TP、2-GPU ZeRO-1、2-GPU ZeRO-2 的完整评测命令
+- [x] 新增 `scripts/run_scaling_benchmarks.sh`，覆盖 1/2/4/8 GPU DDP scaling
+- [x] 新增 `scripts/run_memory_benchmarks.sh`，覆盖 activation checkpoint on/off、DDP、ZeRO-1、ZeRO-2 memory stress
+- [x] 新增 `scripts/run_nsys_profiles.sh`，生成 DDP、TP、ZeRO-2 的 Nsight Systems profile
+- [x] 实际 Phase 6 早期评测结果已写入 `benchmark/results/phase6/`
+- [x] 新一轮 DDP scaling 结果已写入 `benchmark/results/scaling_medium/`
+- [x] 新一轮 memory stress 结果已写入 `benchmark/results/memory_stress/`
+- [x] 新一轮 Tensor Parallel medium 结果已写入 `benchmark/results/tp_medium/`
+- [x] Nsight Systems profile 产物已写入 `benchmark/profiles/`
+- [x] 汇总结果已写入各 results 目录下的 `aggregate.json` 和 `aggregate.md`
+- [x] 每组评测保留 `summary.json`、`summary.md`、`out/metrics.jsonl` 和 `out/train.log`
+- [x] 当前硬件评测环境：NVIDIA RTX A6000 节点；已完成 1/2/4/8 GPU DDP scaling，memory stress 使用 1/2 GPU，TP medium 使用 1/2/4 GPU
+- [x] README 与 `benchmark/README.md` 已记录 benchmark 结果、复现实验命令和可直接使用的简历 bullet
+- [ ] Tensor Parallel + ZeRO hybrid：当前 runtime 暂不支持 hybrid parallel，留到后续扩展
+
+### Benchmark Configs Added
+
+- `configs/bench_gpt_medium.yaml`：DDP scaling medium GPT 配置
+- `configs/bench_gpt_memory_stress.yaml`：activation checkpointing memory stress 配置
+- `configs/bench_gpt_tp_medium.yaml`：Tensor Parallel medium GPT 配置
+- `configs/bench_gpt_zero_memory.yaml`：DDP / ZeRO memory stress 配置
+- `configs/bench_gpt2_owt.yaml`：GPT-2 124M / OpenWebText 单卡配置，对齐 nanoGPT `train_gpt2.py` 的模型规模
+- `configs/bench_gpt2_owt_ddp.yaml`：GPT-2 124M / OpenWebText DDP 配置
+- `configs/bench_gpt2_owt_tp.yaml`：GPT-2 124M / OpenWebText pure Tensor Parallel 配置
+- `configs/bench_gpt2_owt_zero.yaml`：GPT-2 124M / OpenWebText ZeRO 配置
+
+### Benchmark Commands Added
+
+DDP scaling:
+
+```bash
+RESULTS_DIR=benchmark/results/scaling_medium \
+BENCH_ITERS=1000 \
+EVAL_INTERVAL=200 \
+EVAL_ITERS=20 \
+LOG_INTERVAL=10 \
+bash scripts/run_scaling_benchmarks.sh
+```
+
+Memory stress:
+
+```bash
+RESULTS_DIR=benchmark/results/memory_stress \
+BENCH_ITERS=500 \
+EVAL_INTERVAL=100 \
+EVAL_ITERS=10 \
+LOG_INTERVAL=10 \
+bash scripts/run_memory_benchmarks.sh
+```
+
+Nsight Systems profiles:
+
+```bash
+PROFILE_DIR=benchmark/profiles \
+PROFILE_ITERS=20 \
+EVAL_INTERVAL=1000000 \
+EVAL_ITERS=1 \
+LOG_INTERVAL=10 \
+bash scripts/run_nsys_profiles.sh
+```
+
+### Latest Benchmark Results
+
+DDP scaling on `configs/bench_gpt_medium.yaml`:
+
+- 1 GPU BF16 baseline：376,090 tokens/s，mean step time 32.83 ms，step peak GPU memory 517 MB，final val loss 1.7369
+- 2 GPU DDP：609,324 tokens/s，1.62x speedup，81.0% scaling efficiency，step peak GPU memory 557 MB，final val loss 1.5860
+- 4 GPU DDP：1,124,311 tokens/s，2.99x speedup，74.7% scaling efficiency，step peak GPU memory 556 MB，final val loss 1.5235
+- 8 GPU DDP：2,143,187 tokens/s，5.70x speedup，71.2% scaling efficiency，step peak GPU memory 560 MB，final val loss 1.5593
+
+Activation checkpointing on `configs/bench_gpt_memory_stress.yaml`:
+
+- AC off：61,271 tokens/s，mean step time 189.31 ms，step peak GPU memory 1866 MB，final val loss 2.4821
+- AC on：49,928 tokens/s，mean step time 267.64 ms，step peak GPU memory 1410 MB，final val loss 2.4813
+- 结论：activation checkpointing 将单卡 step peak memory 从 1866 MB 降到 1410 MB，约 24.4% reduction；代价是 throughput 从 61.3K tokens/s 降到 49.9K tokens/s
+
+ZeRO memory stress on `configs/bench_gpt_zero_memory.yaml`:
+
+- 2 GPU DDP baseline：82,687 tokens/s，step peak GPU memory 2183 MB，optimizer state memory 652 MB，gradient memory 326 MB，final val loss 2.4090
+- ZeRO-1：65,164 tokens/s，step peak GPU memory 1797 MB，optimizer state memory 270 MB，gradient memory 326 MB，final val loss 2.3802
+- ZeRO-2：61,229 tokens/s，step peak GPU memory 1483 MB，optimizer state memory 270 MB，gradient memory 135 MB，final val loss 2.4534
+- 结论：ZeRO-1 将 optimizer state memory 从 652 MB 降到 270 MB；ZeRO-2 进一步将 gradient memory 从 326 MB 降到 135 MB，并将 2-GPU peak memory 相比 DDP 降低 32.1%
+
+Tensor Parallel medium on `configs/bench_gpt_tp_medium.yaml`:
+
+- 1 GPU TP baseline：90,705 tokens/s，step peak GPU memory 1256 MB，parameter memory 217 MB，gradient memory 217 MB，optimizer state memory 434 MB，final val loss 2.1618
+- 2 GPU TP：79,721 tokens/s，step peak GPU memory 732 MB，parameter memory 109 MB，gradient memory 109 MB，optimizer state memory 218 MB，final val loss 2.2045
+- 4 GPU TP：77,019 tokens/s，step peak GPU memory 464 MB，parameter memory 55 MB，gradient memory 55 MB，optimizer state memory 110 MB，final val loss 2.4200
+- 结论：TP 明显降低 per-rank model/gradient/optimizer/memory footprint，4-GPU TP 相比 1-GPU baseline step peak memory 下降 63.1%；当前小模型下 throughput 低于单卡，通信和并行开销可被清晰观测
+
+### GPT-2 / OpenWebText Status
+
+- 已确认 `nanoGPT` 原生包含更正式的大模型实验路径：GPT-2 124M 结构和 OpenWebText 数据准备流程
+- NanoTrain 已新增 GPT-2 124M / OpenWebText YAML 配置和通用 `BinTokenDataset`
+- 当前 workspace 中 `nanoGPT/data/openwebtext/train.bin` 与 `val.bin` 尚未准备，因此 GPT-2/OpenWebText 配置已经 ready，但没有纳入本轮实测数字
+- 后续只需先运行 `nanoGPT/data/openwebtext/prepare.py` 生成 `.bin` 文件，即可用 `configs/bench_gpt2_owt*.yaml` 复现实验
+
+### Profiling Notes
+
+- Lightweight profiler 使用 `time.perf_counter()` + `torch.cuda.synchronize()` 包住 forward / backward / optimizer / communication 区间，避免 CUDA async 导致计时提前返回
+- `nsys` profile 脚本可生成 `.nsys-rep` / `.qdstrm`，用于查看 CUDA kernel、NCCL collective、CPU launch overhead 与 timeline
+- 当前机器的 Nsight Systems / driver 组合在 report import analysis 阶段出现 non-fatal errors，例如 unknown driver API function index；报告文件仍已生成，但应在 GUI 中检查 Diagnostics Summary
+- 4-GPU TP run 在 summary 写出后，shutdown 阶段出现 NCCL watchdog warning；本轮 TP 结果可用于观察趋势，但后续正式展示建议重跑确认稳定性
+
+### Resume Bullet Draft
+
+- 基于 `nanoGPT` 重构 NanoTrain 轻量级分布式 GPT 训练引擎，支持 YAML 配置、DDP、Megatron-style Tensor Parallel、ZeRO-1/2 optimizer sharding、activation checkpointing、checkpoint resume 与 benchmark profiling；在 RTX A6000 实验中，8-GPU DDP 达到 2.14M tokens/s 和 5.70x speedup，ZeRO-2 将 2-GPU peak memory 降低 32.1%，4-GPU TP 将 per-rank peak memory 降低 63.1%。
+
+### Verification
+
+- `conda run -n nanotrain pytest`：25 passed
+- `conda run -n nanotrain ruff check .`：passed
+- `conda run -n nanotrain black --check .`：passed
+- IDE diagnostics：no linter errors
 
 ## Phase 7: Documentation
 

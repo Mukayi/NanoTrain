@@ -1,0 +1,106 @@
+{
+  "config": {
+    "data": {
+      "batch_size": 4,
+      "data_dir": "nanoGPT/data/shakespeare_char",
+      "dataset": "shakespeare_char"
+    },
+    "distributed": {
+      "backend": "nccl",
+      "tp_size": 1,
+      "zero_stage": 0
+    },
+    "model": {
+      "bias": false,
+      "block_size": 512,
+      "dropout": 0.0,
+      "n_embd": 768,
+      "n_head": 12,
+      "n_layer": 12,
+      "vocab_size": 50304
+    },
+    "optimizer": {
+      "beta1": 0.9,
+      "beta2": 0.95,
+      "grad_clip": 1.0,
+      "learning_rate": 0.0006,
+      "name": "adamw",
+      "weight_decay": 0.1
+    },
+    "runtime": {
+      "activation_checkpointing": false,
+      "amp": true,
+      "compile": false,
+      "device": "cuda",
+      "dtype": "bfloat16"
+    },
+    "scheduler": {
+      "decay_lr": true,
+      "lr_decay_iters": 500,
+      "min_lr": 6e-05,
+      "warmup_iters": 20
+    },
+    "seed": 1337,
+    "train": {
+      "always_save_checkpoint": false,
+      "eval_interval": 1,
+      "eval_iters": 1,
+      "gradient_accumulation_steps": 1,
+      "init_from": "scratch",
+      "log_interval": 1,
+      "max_iters": 1,
+      "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/memory_smoke/activation_off/out",
+      "resume_path": null
+    }
+  },
+  "config_path": "configs/bench_gpt_memory_stress.yaml",
+  "hardware": {
+    "cuda_available": true,
+    "cuda_device_count": 1,
+    "cuda_devices": [
+      "NVIDIA RTX A6000"
+    ],
+    "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+    "python": "3.10.20",
+    "torch": "2.5.1"
+  },
+  "metrics": {
+    "activation_memory_estimate_mb": 36.0,
+    "elapsed_seconds": 2.9523081179941073,
+    "final_eval_train_loss": 4.190017223358154,
+    "final_eval_val_loss": 4.201048374176025,
+    "final_iter": 1,
+    "final_train_loss": 4.3231201171875,
+    "gradient_memory_mb": 325.763671875,
+    "mean_backward_time_ms": 33.910741040017456,
+    "mean_communication_time_ms": 0.030726019758731127,
+    "mean_forward_time_ms": 16.724082990549505,
+    "mean_optimizer_time_ms": 15.72133501758799,
+    "mean_samples_per_second": 14.010259750562632,
+    "mean_step_time_ms": 285.5050563812256,
+    "mean_tokens_per_second": 7173.252992288068,
+    "mode": "single",
+    "num_eval_records": 2,
+    "num_train_step_records": 1,
+    "optimizer_state_memory_mb": 651.5276298522949,
+    "parameter_memory_mb": 325.763671875,
+    "peak_gpu_memory_mb": 1342.376953125,
+    "step_peak_gpu_memory_mb": 1342.376953125,
+    "summary_warmup_steps": 1,
+    "world_size": 1
+  },
+  "name": "activation_off",
+  "out_dir": "/data_2/xiatianze/nanotrain/benchmark/results/memory_smoke/activation_off/out",
+  "overrides": [
+    "train.max_iters=1",
+    "train.eval_interval=1",
+    "train.eval_iters=1",
+    "train.log_interval=1",
+    "train.always_save_checkpoint=false",
+    "runtime.activation_checkpointing=false",
+    "distributed.zero_stage=0",
+    "distributed.tp_size=1",
+    "train.gradient_accumulation_steps=1"
+  ],
+  "results_dir": "/data_2/xiatianze/nanotrain/benchmark/results/memory_smoke/activation_off"
+}

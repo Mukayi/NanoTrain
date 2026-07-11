@@ -29,9 +29,48 @@ baseline through distributed training MVPs:
 - ZeRO-1 optimizer-state sharding for DDP
 - ZeRO-2 MVP with owner-rank gradient reduction for DDP
 - Smoke configs and tests for single-process, DDP, TP, ZeRO-1, and ZeRO-2 paths
+- Benchmark configs and scripts for DDP scaling, TP memory/perf, ZeRO memory,
+  activation checkpointing, and Nsight Systems traces
 
 The original `GPT` baseline remains unchanged; TP and ZeRO paths are opt-in via
 YAML config fields.
+
+## Benchmark Results
+
+Benchmarks below were run on the available RTX A6000 node with BF16 AMP, using
+nanoGPT-style Shakespeare binary data for repeatability. OpenWebText/GPT-2 124M
+configs are included, but `nanoGPT/data/openwebtext/train.bin` and `val.bin`
+must be prepared before those runs can execute.
+
+- DDP scaling on the medium GPT config reached 376K tokens/s on 1 GPU, 609K on
+  2 GPUs, 1.12M on 4 GPUs, and 2.14M on 8 GPUs. Relative to the 1-GPU baseline,
+  the 8-GPU run achieved 5.70x speedup and 71.2% scaling efficiency.
+- Activation checkpointing on the 85M memory-stress config reduced single-GPU
+  step peak memory from 1866 MB to 1410 MB, a 24.4% reduction, with tokens/s
+  decreasing from 61.3K to 49.9K.
+- ZeRO-1 on the 2-GPU 85M config reduced optimizer-state memory from 652 MB to
+  270 MB and step peak memory from 2183 MB to 1797 MB. ZeRO-2 additionally
+  reduced gradient memory from 326 MB to 135 MB and step peak memory to 1483 MB,
+  a 32.1% peak-memory reduction versus DDP.
+- Pure Tensor Parallel on the 56.7M/28.3M/14.2M per-rank medium config reduced
+  step peak memory from 1256 MB on 1 GPU to 732 MB on 2 GPUs and 464 MB on
+  4 GPUs. Throughput was lower than the single-GPU baseline for this small model,
+  which makes communication overhead visible.
+
+Known benchmark caveats: the current OpenWebText dataset is not prepared on this
+machine, so GPT-2/OpenWebText configs are ready but not included in the measured
+numbers. The 4-GPU TP run wrote its summary successfully, then emitted an NCCL
+watchdog warning during shutdown. Nsight Systems reports were generated, but the
+installed Nsight/driver combination reported non-fatal import analysis errors.
+
+## Resume Bullet
+
+- Refactored `nanoGPT` into NanoTrain, a modular GPT training engine with YAML
+  configs, DDP, Megatron-style Tensor Parallel layers, ZeRO-1/2 optimizer
+  sharding, activation checkpointing, checkpoint resume, and benchmark tooling;
+  on RTX A6000 experiments, 8-GPU DDP reached 2.14M tokens/s with 5.70x speedup,
+  ZeRO-2 reduced 2-GPU peak memory by 32.1%, and 4-GPU TP reduced per-rank peak
+  memory by 63.1%.
 
 
 

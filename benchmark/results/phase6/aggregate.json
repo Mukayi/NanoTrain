@@ -1,0 +1,72 @@
+[
+  {
+    "final_eval_val_loss": 3.4260621070861816,
+    "final_train_loss": 3.5452880859375,
+    "mean_step_time_ms": 5.116324675710578,
+    "mean_tokens_per_second": 60146.25838713696,
+    "mode": "ddp2",
+    "name": "ddp_2gpu",
+    "peak_gpu_memory_mb": 25.31689453125,
+    "world_size": 2
+  },
+  {
+    "final_eval_val_loss": 3.1503548622131348,
+    "final_train_loss": 3.3347599506378174,
+    "mean_step_time_ms": 20.694230732164886,
+    "mean_tokens_per_second": 9083.765585481198,
+    "mode": "single",
+    "name": "single_cpu",
+    "peak_gpu_memory_mb": null,
+    "world_size": 1
+  },
+  {
+    "final_eval_val_loss": 3.487060546875,
+    "final_train_loss": 3.619140625,
+    "mean_step_time_ms": 6.778553912514134,
+    "mean_tokens_per_second": 21410.74080391534,
+    "mode": "single",
+    "name": "single_gpu_activation_checkpointing",
+    "peak_gpu_memory_mb": 23.029296875,
+    "world_size": 1
+  },
+  {
+    "final_eval_val_loss": 3.487060546875,
+    "final_train_loss": 3.619140625,
+    "mean_step_time_ms": 4.596697656731856,
+    "mean_tokens_per_second": 34048.95210302171,
+    "mode": "single",
+    "name": "single_gpu_bf16",
+    "peak_gpu_memory_mb": 23.21875,
+    "world_size": 1
+  },
+  {
+    "final_eval_val_loss": 3.5877928733825684,
+    "final_train_loss": 3.5380859375,
+    "mean_step_time_ms": 7.469076859323602,
+    "mean_tokens_per_second": 19868.409953597424,
+    "mode": "tp2",
+    "name": "tp_2gpu",
+    "peak_gpu_memory_mb": 20.06884765625,
+    "world_size": 2
+  },
+  {
+    "final_eval_val_loss": 3.433666944503784,
+    "final_train_loss": 3.5506591796875,
+    "mean_step_time_ms": 5.650583066438374,
+    "mean_tokens_per_second": 50413.23632377299,
+    "mode": "zero1",
+    "name": "zero1_2gpu",
+    "peak_gpu_memory_mb": 23.5302734375,
+    "world_size": 2
+  },
+  {
+    "final_eval_val_loss": 3.4895997047424316,
+    "final_train_loss": 3.6002197265625,
+    "mean_step_time_ms": 5.908012390136719,
+    "mean_tokens_per_second": 47630.56031373998,
+    "mode": "zero2",
+    "name": "zero2_2gpu",
+    "peak_gpu_memory_mb": 21.43212890625,
+    "world_size": 2
+  }
+]
